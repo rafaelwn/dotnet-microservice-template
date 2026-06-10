@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using MassTransit;
 using MinhaApi.Domain.Entities;
 using MinhaApi.Infrastructure.Data;
+using MinhaApi.Infrastructure.Messaging;
 
 namespace MinhaApi.Features.Produtos;
 
@@ -17,7 +18,7 @@ public static class CreateProdutoEndpoint
 {
     public static void MapCreateProduto(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/produtos", async (CreateProdutoRequest request, AppDbContext db, IPublishEndpoint publishEndpoint, ILoggerFactory loggerFactory) =>
+        app.MapPost("/api/produtos", async (CreateProdutoRequest request, AppDbContext db, IPublishEndpoint publishEndpoint, KafkaProdutoProducer kafkaProducer, ILoggerFactory loggerFactory) =>
         {
             var logger = loggerFactory.CreateLogger("MinhaApi.Produtos");
 
@@ -34,6 +35,9 @@ public static class CreateProdutoEndpoint
                 logger.LogInformation(
                     "📤 [RabbitMQ] Evento publicado: ProdutoCriadoEvent {{ Id = {Id}, Nome = {Nome}, Preco = {Preco} }}",
                     evento.Id, evento.Nome, evento.Preco);
+
+                // 🚀 PUBLICANDO O MESMO EVENTO NO TÓPICO DO KAFKA
+                await kafkaProducer.PublicarProdutoCriadoAsync(evento);
 
                 return Results.Created($"/api/produtos/{produto.Id}", produto);
             }

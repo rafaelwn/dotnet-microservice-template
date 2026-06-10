@@ -14,6 +14,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // HttpClient usado pelas rotas de monitoramento de filas
 builder.Services.AddHttpClient();
 
+// 🚀 CONFIGURAÇÃO DO KAFKA (Confluent.Kafka direto, sem abstração)
+builder.Services.AddSingleton<KafkaProdutoProducer>();          // 📤 publica no tópico produtos-criados
+builder.Services.AddHostedService<KafkaProdutoConsumerService>(); // 📥 consome o tópico em background
+
 // 🚀 CONFIGURAÇÃO DO MASSTRANSIT COM RABBITMQ
 builder.Services.AddMassTransit(x =>
 {
@@ -48,7 +52,8 @@ using (var scope = app.Services.CreateScope())
 
 app.MapCreateProduto();
 app.MapGetFilasRabbitMq();
+app.MapGetFilasKafka();
 
-app.Logger.LogInformation("🚀 MinhaApi iniciada — rotas: POST/GET /api/produtos, GET /api/filas/rabbitmq");
+app.Logger.LogInformation("🚀 MinhaApi iniciada — rotas: POST/GET /api/produtos, GET /api/filas/rabbitmq, GET /api/filas/kafka");
 
 app.Run();

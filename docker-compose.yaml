@@ -12,6 +12,8 @@ services:
     depends_on:
       fila-rabbitmq:
         condition: service_healthy # Espera o RabbitMQ estar pronto (não apenas iniciado)
+      fila-kafka:
+        condition: service_healthy # Espera o Kafka estar pronto
 
   # Container 2: RabbitMQ com Painel de Gerenciamento Visual
   fila-rabbitmq:
@@ -28,3 +30,41 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+
+  # Container 3: Apache Kafka em modo KRaft (sem Zookeeper)
+  fila-kafka:
+    image: apache/kafka:3.8.0
+    container_name: fila-kafka
+    ports:
+      - "9092:9092" # Porta para clientes rodando na máquina física (dotnet watch run)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@fila-kafka:9093
+      # INTERNO (19092): usado pelos containers da rede do compose
+      # EXTERNO (9092): usado pela sua máquina física via localhost
+      KAFKA_LISTENERS: INTERNO://:19092,CONTROLLER://:9093,EXTERNO://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNO://fila-kafka:19092,EXTERNO://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNO:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNO:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true" # O tópico é criado na primeira publicação
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server fila-kafka:19092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  # Container 4: Kafka UI — painel visual para tópicos, mensagens e consumer groups
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    ports:
+      - "8080:8080" # http://localhost:8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: fila-kafka:19092
+    depends_on:
+      fila-kafka:
+        condition: service_healthy
