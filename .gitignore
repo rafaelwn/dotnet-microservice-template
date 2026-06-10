@@ -14,7 +14,7 @@ banco.db-wal
 .vscode/
 .idea/
 *.user
-.claude/settings.local.json
+.claude/
 
 # Logs
 *.log
