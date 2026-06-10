@@ -35,6 +35,28 @@ serviços com deploy independente** — é exatamente o que as próximas fases e
 
 ---
 
+## 🧑‍💻 Estratégia de Ambientes (Developer Experience)
+
+> **Regra de ouro:** local fica só o que você está *iterando*; nuvem fica o que é
+> *compartilhável e pesado*. Rodar a plataforma inteira no notebook é troféu de
+> aprendizado — não requisito para trabalhar. O ambiente precisa funcionar em
+> qualquer máquina do time, não só na mais parruda.
+
+| Ambiente | Onde roda | O que contém | Custo |
+|---|---|---|---|
+| **🖥️ Inner loop** (dia a dia) | Máquina do dev (~8 GB basta) | O serviço em edição com `dotnet watch` + compose enxuto: brokers (Kafka com heap reduzido) e banco | R$ 0 |
+| **☁️ Dev compartilhado** (outer loop) | Cluster pequeno na nuvem — **um para o time inteiro** | Kubernetes + ArgoCD + Grafana + Keycloak + serviços integrados; isolamento por *namespace* (por dev/feature) | ~US$ 30–60/mês com auto-shutdown |
+| **🧪 Sandbox local completo** (opcional) | k3d/kind no Docker | Cluster + ArgoCD + stack inteira local — exercício de aprendizado da Fase 9 | R$ 0 (exige ~9 GB livres) |
+
+Decisões que sustentam essa estratégia:
+
+- **AKS free tier**: o control plane custa zero — paga-se só os nós. Ambiente dev não roda 24/7: auto-shutdown à noite/fim de semana corta ~70% da conta.
+- **ArgoCD mora no cluster dev** (faz *pull* do GitHub; o time só abre a UI no navegador).
+- **mirrord / Telepresence**: pluga o processo local (`dotnet watch`) na rede do cluster remoto — hot reload local conversando com a infraestrutura real. O melhor dos dois mundos, e o motivo de times grandes terem abandonado o "sobe tudo local".
+- Para estudo solo antes do time existir: uma única VM com k3s (~US$ 15–25/mês com auto-stop) roda o papel do cluster dev.
+
+---
+
 ## 🚀 Próximas Features (em ordem)
 
 ### Fase 4 — Monorepo + Segundo Serviço (o desacoplamento real)
@@ -142,6 +164,8 @@ Ajustes necessários na aplicação:
 - [ ] Credenciais para `Secret` / variáveis de ambiente (`RabbitMq__Host` etc. — o .NET já suporta nativamente)
 - [ ] Manifests ou Helm chart por serviço
 - [ ] Brokers via operator (Strimzi para Kafka, RabbitMQ Cluster Operator) ou serviço gerenciado
+- [ ] *(Opcional)* Sandbox local completo: cluster **k3d** + ArgoCD rodando no Docker — ver "Estratégia de Ambientes"
+- [ ] *(Quando houver cluster dev)* **mirrord/Telepresence**: dev local plugado na infraestrutura remota
 
 Pipeline completa:
 
@@ -211,4 +235,4 @@ flowchart LR
 
 ---
 
-*Documento vivo — atualizado a cada fase concluída. Última atualização: 2026-06-10 (fases 0–3 concluídas; adicionadas Fase 8 de segurança, Grafana na Fase 7 e backlog de performance).*
+*Documento vivo — atualizado a cada fase concluída. Última atualização: 2026-06-10 (fases 0–3 concluídas; Fase 8 de segurança, Grafana na Fase 7, backlog de performance e Estratégia de Ambientes adicionados).*
