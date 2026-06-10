@@ -89,19 +89,42 @@ dotnet-microservice-template/
 
 ---
 
-### Fase 7 — Observabilidade e Health Checks
+### Fase 7 — Observabilidade, Health Checks e Dashboard (Grafana)
 
 *Pré-requisito direto do Kubernetes (probes) e a base para operar em produção.*
 
 - [ ] `/health/live` e `/health/ready` com `AspNetCore.HealthChecks` (RabbitMQ + Kafka + banco)
 - [ ] OpenTelemetry: tracing distribuído com correlation id viajando **dentro da mensagem** — ver o mesmo trace atravessar API → broker → worker
+- [ ] Métricas: endpoint `/metrics` (Prometheus) na API e no worker via OpenTelemetry
+- [ ] Exporters dos brokers: plugin `rabbitmq_prometheus` (nativo) e Kafka exporter
+- [ ] **Prometheus + Grafana no compose**: dashboard com profundidade das filas, lag do consumer group e taxa de publish/consume, com auto-refresh (5–10s)
 - [ ] Testes de integração com **Testcontainers** (sobe RabbitMQ/Kafka reais durante o teste)
 
-**Conceitos:** liveness vs readiness · tracing distribuído · testes de integração reais
+> 💡 **Decisão de design:** o dashboard de filas será no **Grafana**, não em um frontend
+> React/TypeScript próprio. Estado de fila é métrica de infraestrutura: os exporters já
+> existem, o refresh periódico é nativo, e não criamos uma aplicação inteira para manter.
+> Um frontend customizado só se justificaria para telas de *negócio* — e aí entraria no
+> roadmap como um serviço próprio consumindo a API.
+
+**Conceitos:** liveness vs readiness · tracing distribuído · métricas Prometheus · dashboards · testes de integração reais
 
 ---
 
-### Fase 8 — Kubernetes + CD com GitOps (ArgoCD)
+### Fase 8 — Segurança: Autenticação e Autorização (JWT + IdP)
+
+*Proteger as rotas com o mesmo modelo usado em produção: tokens JWT emitidos por um Identity Provider — local primeiro, gerenciado na nuvem depois.*
+
+- [ ] **Keycloak** como container no compose (OpenID Connect) — faz localmente o mesmo papel do Cognito/Entra ID
+- [ ] Validação de JWT na API (issuer, audience, assinatura) com `AddJwtBearer`
+- [ ] Proteger rotas com policies/scopes (ex.: `produtos:write` para o POST, leitura pública nas rotas de monitoramento)
+- [ ] Propagar identidade nos eventos (quem criou o produto viaja na mensagem)
+- [ ] **Na nuvem (Fase 10):** trocar o IdP por serviço gerenciado — **Microsoft Entra ID** na Azure, **Amazon Cognito** na AWS — alterando apenas configuração (`Authority`), sem tocar no código. É a prova de que a autenticação está desacoplada.
+
+**Conceitos:** OAuth2/OIDC · JWT (claims, scopes, expiração) · authorization policies · IdP gerenciado vs self-hosted
+
+---
+
+### Fase 9 — Kubernetes + CD com GitOps (ArgoCD)
 
 *Os Dockerfiles são 100% reaproveitados. O compose vira artefato de dev — o cluster usa manifests.*
 
@@ -131,7 +154,7 @@ push → CI do serviço (path filter) → build + test → imagem → GHCR
 
 ---
 
-### Fase 9 — Deploy na Nuvem: Azure primeiro, depois AWS ☁️
+### Fase 10 — Deploy na Nuvem: Azure primeiro, depois AWS ☁️
 
 *A recompensa: a mesma estrutura rodando em cloud de verdade — e a portabilidade comprovada.*
 
@@ -140,11 +163,21 @@ push → CI do serviço (path filter) → build + test → imagem → GHCR
 | Kubernetes | AKS | EKS |
 | Registry | ACR (ou GHCR) | ECR (ou GHCR) |
 | PostgreSQL | Azure Database for PostgreSQL | RDS |
+| Identidade (JWT) | Microsoft Entra ID | Amazon Cognito |
+| Observabilidade gerenciada (opcional) | Azure Managed Grafana | Amazon Managed Grafana |
 | Mensageria gerenciada (opcional) | Azure Service Bus / Event Hubs | Amazon MQ / MSK |
 
 - [ ] Infra como código (Bicep/Terraform na Azure; Terraform na AWS)
 - [ ] ArgoCD apontando para o cluster cloud
 - [ ] O mesmo GitOps, duas nuvens — provar que a arquitetura é portável
+
+---
+
+## 🔮 Backlog (sem fase definida — quando houver contexto)
+
+- **Performance e carga:** o .NET 8 já entrega throughput excelente por padrão; o assunto fica relevante quando novos componentes/adapters forem plugados. Ferramentas previstas: **k6** ou **NBomber** (teste de carga no fluxo HTTP → broker → worker), **BenchmarkDotNet** (micro-benchmarks) e avaliação de **Native AOT** para o worker.
+- **API Gateway (YARP):** quando existirem 2+ APIs HTTP expostas.
+- **Versionamento de contratos / Schema Registry:** evolução do `ProdutoCriadoEvent` com consumidores antigos no ar.
 
 ---
 
@@ -158,8 +191,15 @@ flowchart LR
         rabbit["🐰 RabbitMQ<br/>(Operator)"]
         kafka["📨 Kafka<br/>(Strimzi)"]
         pg[("🐘 PostgreSQL")]
+        graf["📈 Prometheus<br/>+ Grafana"]
     end
-    user(["👤 Cliente HTTP"]) -->|Ingress| api
+    idp["🔐 IdP<br/>(Entra ID / Cognito)"]
+    user(["👤 Cliente HTTP"]) -->|JWT| idp
+    user -->|Ingress| api
+    api -.->|valida token| idp
+    graf -.->|scrape /metrics| api
+    graf -.-> rabbit
+    graf -.-> kafka
     api --> pg
     api -->|ProdutoCriadoEvent| rabbit --> worker
     api -->|ProdutoCriadoEvent| kafka --> worker
@@ -171,4 +211,4 @@ flowchart LR
 
 ---
 
-*Documento vivo — atualizado a cada fase concluída. Última atualização: 2026-06-10 (fases 0–3 concluídas).*
+*Documento vivo — atualizado a cada fase concluída. Última atualização: 2026-06-10 (fases 0–3 concluídas; adicionadas Fase 8 de segurança, Grafana na Fase 7 e backlog de performance).*
