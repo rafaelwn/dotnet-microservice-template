@@ -1,0 +1,20 @@
+# Build
+bin/
+obj/
+out/
+
+# Banco local SQLite
+banco.db
+banco.db-shm
+banco.db-wal
+*.db
+
+# IDE / ferramentas
+.vs/
+.vscode/
+.idea/
+*.user
+.claude/settings.local.json
+
+# Logs
+*.log
