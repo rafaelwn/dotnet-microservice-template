@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST http://localhost:5000/api/produtos -H \"Content-Type: application/json\" -d '{\"nome\": \"Teclado Mecânico\", \"preco\": 350.00}')",
+      "Bash(git commit -m 'feat\\(rabbitmq\\): consumidor, rota de monitoramento de filas e logs didáticos *)"
+    ]
+  }
+}

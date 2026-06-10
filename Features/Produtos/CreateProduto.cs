@@ -17,8 +17,10 @@ public static class CreateProdutoEndpoint
 {
     public static void MapCreateProduto(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/produtos", async (CreateProdutoRequest request, AppDbContext db, IPublishEndpoint publishEndpoint) =>
+        app.MapPost("/api/produtos", async (CreateProdutoRequest request, AppDbContext db, IPublishEndpoint publishEndpoint, ILoggerFactory loggerFactory) =>
         {
+            var logger = loggerFactory.CreateLogger("MinhaApi.Produtos");
+
             try
             {
                 var produto = new Produto(request.Nome, request.Preco);
@@ -26,12 +28,18 @@ public static class CreateProdutoEndpoint
                 await db.SaveChangesAsync();
 
                 // 🚀 PUBLICANDO NO RABBITMQ DE FORMA ASSÍNCRONA
-                await publishEndpoint.Publish(new ProdutoCriadoEvent(produto.Id, produto.Nome, produto.Preco));
+                var evento = new ProdutoCriadoEvent(produto.Id, produto.Nome, produto.Preco);
+                await publishEndpoint.Publish(evento);
+
+                logger.LogInformation(
+                    "📤 [RabbitMQ] Evento publicado: ProdutoCriadoEvent {{ Id = {Id}, Nome = {Nome}, Preco = {Preco} }}",
+                    evento.Id, evento.Nome, evento.Preco);
 
                 return Results.Created($"/api/produtos/{produto.Id}", produto);
             }
             catch (ArgumentException ex)
             {
+                logger.LogWarning("⚠️ Produto rejeitado pela validação de domínio: {Erro}", ex.Message);
                 return Results.BadRequest(new { Erro = ex.Message });
             }
         });

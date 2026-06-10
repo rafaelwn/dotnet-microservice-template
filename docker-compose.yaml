@@ -10,7 +10,8 @@ services:
     ports:
       - "5000:80" # Mapeia a porta 5000 da sua máquina física para a porta 80 interna do container
     depends_on:
-      - fila-rabbitmq # Garante que o microsserviço espere o RabbitMQ subir primeiro
+      fila-rabbitmq:
+        condition: service_healthy # Espera o RabbitMQ estar pronto (não apenas iniciado)
 
   # Container 2: RabbitMQ com Painel de Gerenciamento Visual
   fila-rabbitmq:
@@ -22,3 +23,8 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
